@@ -11,14 +11,24 @@ class ClassificationDataset(Dataset):
     An implementation of Pytorch Dataset for document classification that accepts plain text data with each line formatted as:
      LABEL <TAB> TEXT
      For example:
-     POSITIVE <TAB> This example is a positive one.
-     NEGATIVE <TAB> This example is a negative one.
+     LABEL1 <TAB> This is an example text.
+     LABEL2 <TAB> This is another example text.
     """
+    # Here we set some class-wise variables for the names of the fields, so we can easily refer to them later
     TEXT_F: ClassVar[str] = 'text'
     ATTENTION_MASK_F: ClassVar[str] = 'attention_mask'
     LABEL_F: ClassVar[str] = 'label'
 
     def __init__(self, instances: List[Dict[str, str]], labels_vocabulary: Dict[str, int], tokenizer: PreTrainedTokenizer, max_len: int):
+        """
+        Initialize the Dataset with the instances (dicts pairing labels and texts), the labels vocabulary, the tokenizer for the Transformers model
+        that is going to be used, and the max length for the encoded instances (NOTE: BERT has a hard-max-length of 512 tokens).
+        Not mean to be used directly, it is better to use the static :method:load_from_file or :method:load_for_inference methods
+        :param instances: the instances (a list of dictionaries with label and document text)
+        :param labels_vocabulary: a list of the labels that apply for the dataset that is being used
+        :param tokenizer: the Transformers tokenizer that pairs the model that will be used during training
+        :param max_len: the max length of the encoded instances (to pad or crop them to this desired length)
+        """
         self.instances = instances
         self.labels_vocabulary = labels_vocabulary
         self.tokenizer = tokenizer
@@ -26,6 +36,14 @@ class ClassificationDataset(Dataset):
 
     @classmethod
     def load_from_file(cls, path, tokenizer: PreTrainedTokenizer, labels_vocabulary: Dict[str, int], max_len: int):
+        """
+        Instantiates a dataset reading the data from a file.
+        :param path: the path to the data file (must be in a suitable format, lines containing LABEL<TAB>TEXT)
+        :param tokenizer: the Transformers tokenizer that pairs the model that will be used during training
+        :param max_len: the max length of the encoded instances (to pad or crop them to this desired length)
+        :param labels_vocabulary: a list of the labels that apply for the dataset that is being used
+        :return: a loaded Dataset instance
+        """
         instances = []
         with open(path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
@@ -42,6 +60,13 @@ class ClassificationDataset(Dataset):
 
     @classmethod
     def load_for_inference(cls, documents: List[str], tokenizer: PreTrainedTokenizer, max_len: int):
+        """
+        Loads a dataset instance just for inference (no gold-labels, just document text)
+        :param documents: a list of strings, containing the text to predict a label for
+        :param tokenizer: the Transformers tokenizer that pairs the model that will be used during training
+        :param max_len: the max length of the encoded instances (to pad or crop them to this desired length)
+        :return: a loaded Dataset instance
+        """
         instances = [{cls.LABEL_F: 'N/A', cls.TEXT_F: text} for text in documents]
         dummy_labels_vocab = {'N/A': 0}  # we need some labels vocab to prevent the logic from breaking, but we are not going to use it
         return ClassificationDataset(instances=instances, labels_vocabulary=dummy_labels_vocab, tokenizer=tokenizer, max_len=max_len)

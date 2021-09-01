@@ -16,6 +16,9 @@ from bert_examples.classification_dataset import ClassificationDataset
 
 
 class BertDocumentEncoder:
+    """
+    A class that encapsulates the logic to load and use a pre-trained BERT model to encode documents (using MEAN_POOLING)
+    """
 
     def __init__(self, bert_model_name_or_path: str, cache_dir: str = None):
         self.model: PreTrainedModel = BertModel.from_pretrained(bert_model_name_or_path, cache_dir=cache_dir)
@@ -23,6 +26,14 @@ class BertDocumentEncoder:
 
     @torch.no_grad()
     def encode_documents(self, documents: List[str], max_len: int, batch_size: int = 8, cuda_device_num: int = -1):
+        """
+        Encode all the documents, generating their document-embeddings (vectors of size H, where H=768 for a BERT-base model)
+        :param documents: the list of documents to encode (can be all your document base, to precompute it)
+        :param max_len: max length of document to use when encoding
+        :param batch_size: batch size
+        :param cuda_device_num: number of cuda device to use (-1 means CPU)
+        :return:
+        """
         cuda_device = f'cuda:{cuda_device_num}' if cuda_device_num >= 0 else 'cpu'
         self.model.to(cuda_device)
         dataset = ClassificationDataset.load_for_inference(documents=documents, tokenizer=self.tokenizer, max_len=max_len)
@@ -34,7 +45,7 @@ class BertDocumentEncoder:
 
             output = self.model(input_ids=token_ids, attention_mask=attention_mask)
             sequence_output = output.last_hidden_state  # this should be a BxSxH  (B=batch_size, S=seq_len, H=hidden_size)
-            # We are going to implement an "AVERAGE_POOLING"
+            # We are going to implement an "MEAN_POOLING"
             # (i.e. pick the average of tokens contextual-word-embeddings to obtain a document-embedding)
             sequence_wise_sums = torch.sum(sequence_output, dim=1)  # this should lead to a BxH shaped tensor
             valid_positions = torch.sum(attention_mask, dim=1).unsqueeze(1)  # this should lead to a Bx1 shaped tensor
@@ -45,6 +56,9 @@ class BertDocumentEncoder:
 
 
 class BERTSimilarityCalculator:
+    """
+    A class that encapsulates the calculation of similarity among documents (based on cosine-distance) using BERT document embeddings
+    """
 
     def __init__(self, all_documents: List[str], documents_encoder: BertDocumentEncoder, max_len: int, batch_size: int = 8,
                  cuda_device_num: int = -1):
@@ -57,6 +71,12 @@ class BERTSimilarityCalculator:
         self.batch_size = batch_size
 
     def rank_similar_documents(self, single_document, num_top_docs: int = 5):
+        """
+        Compares the given document to all the other documents that were supplied in the creation of the class
+        :param single_document: The single document for which obtain a rank of other similar documents
+        :param num_top_docs: the number of most-similar candidates to return
+        :return: a sorted list of tuples with the most-similar documents to the given one (and their similarity score)
+        """
         encoded_question = self.documents_encoder.encode_documents([single_document], max_len=self.max_len, batch_size=self.batch_size)
 
         distances: List[float] = spatial.distance.cdist(encoded_question, self.document_embeddings, "cosine")[0]
@@ -72,6 +92,9 @@ class BERTSimilarityCalculator:
 
 
 class BERTClusterer:
+    """
+    A class that encapsulates the logic to use BERT encodings over documents, and run a K-means clustering algorithm of top of them.
+    """
 
     def __init__(self, all_documents: List[str], documents_encoder: BertDocumentEncoder, max_len: int, batch_size: int = 8,
                  cuda_device_num: int = -1):
@@ -109,7 +132,9 @@ class BERTClusterer:
 
 
 if __name__ == '__main__':
+    # Let's try all this
     BERT_MODEL_NAME_OR_PATH = 'bert-base-multilingual-cased'
+    # Change this path to one that suits your system
     CACHE_DIR = 'D:/DATA/cache'
 
     BERT_DOCUMENTS_ENCODER = BertDocumentEncoder(bert_model_name_or_path=BERT_MODEL_NAME_OR_PATH, cache_dir=CACHE_DIR)
