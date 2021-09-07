@@ -7,8 +7,10 @@ In any case, it should work for the purpose of this example.
 """
 import json
 import os
+import random
 from typing import List
 
+import numpy as np
 import torch
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader
@@ -25,7 +27,7 @@ class SimpleBERTForClassificationTrainer:
     """
 
     def __init__(self, checkpoints_folder: str, bert_model_name_or_path: str,
-                 train_data: str, dev_data: str, labels_inventory: List[str], max_len=100, cache_dir: str = None):
+                 train_data: str, dev_data: str, labels_inventory: List[str], max_len=100, cache_dir: str = None, random_seed: int = 12345):
         """
         Instantiates the class to run a training with the given data files.
         The data loading is handled by the corresponding Dataset class.
@@ -36,7 +38,11 @@ class SimpleBERTForClassificationTrainer:
         :param labels_inventory: the list of valid labels
         :param max_len: the maximum length of each sequence, measured in BERT-tokens
         :param cache_dir: path to a folder to cache assets downloaded from HF, leave empty to use the default location
+        :param random_seed: random seed to control randomness and allow reproducing the same results (set to -1 to avoid setting a fixed value)
         """
+        # Fix all random sources to a certain configurable seed value, so the results can be reproduced
+        if random_seed >= 0:
+            set_all_random_seeds_to(seed=random_seed)
         self.checkpoints_folder = checkpoints_folder
         self.labels_vocabulary = {label: i for i, label in enumerate(sorted(set(labels_inventory)))}
         self.tokenizer = BertTokenizer.from_pretrained(bert_model_name_or_path, cache_dir=cache_dir)
@@ -77,6 +83,7 @@ class SimpleBERTForClassificationTrainer:
         :param cuda_device_num: number of cuda device to use (-1 means CPU)
         :return:
         """
+
         # Check the provided cuda device num
         cuda_device = f'cuda:{cuda_device_num}' if cuda_device_num >= 0 else 'cpu'
         # Move the model to the selected device
@@ -179,6 +186,30 @@ class SimpleBERTForClassificationTrainer:
             json.dump(self.labels_vocabulary, f, indent=4)
 
 
+def set_all_random_seeds_to(seed: int = 12345):
+    """
+    An auxiliary method that sets all the random sources to a fixed seed, so the results become the same when the same seed is used.
+    This help to reproduce the results for experiments.
+    :param seed: the seed value to fix
+    :return:
+    """
+    print(f'Setting all random seeds (Python/Numpy/Pytorch) to: {seed}')
+    # random seeds for all the involved modules (pytorch, numpy, and general random)
+    # if we were using GPU, additional stuff would be needed here
+    # see: https://pytorch.org/docs/stable/notes/randomness.html
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    if torch.cuda.is_available():
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        # also NOTE:
+        # 'Deterministic mode can have a performance impact, depending on your model.
+        # This means that due to the deterministic nature of the model, the processing speed
+        # (i.e. processed batch items per second) can be lower than when the model is non-deterministic.'
+    # ####################
+
+
 if __name__ == '__main__':
     # Let's try it
     CHECKPOINTS_FOLDER = 'D:/DATA/WORK/ibermatica_bert_formacion/checkpoints'
@@ -195,5 +226,5 @@ if __name__ == '__main__':
     CACHE_DIR = 'D:/DATA/cache'
     trainer = SimpleBERTForClassificationTrainer(checkpoints_folder=CHECKPOINTS_FOLDER, bert_model_name_or_path=BERT_MODEL_NAME_OR_PATH,
                                                  train_data=TRAIN_DATA, dev_data=DEV_DATA, labels_inventory=LABELS_INVENTORY, max_len=MAX_LEN,
-                                                 cache_dir=CACHE_DIR)
-    trainer.train(run_name='test2', num_epochs=10, learning_rate=2E-5, batch_size=8, cuda_device_num=CUDA_DEVICE_NUM)
+                                                 cache_dir=CACHE_DIR, random_seed=12345)
+    trainer.train(run_name='test8', num_epochs=10, learning_rate=2E-5, batch_size=8, cuda_device_num=CUDA_DEVICE_NUM)
