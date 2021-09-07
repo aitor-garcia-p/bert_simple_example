@@ -47,8 +47,10 @@ class BertDocumentEncoder:
             sequence_output = output.last_hidden_state  # this should be a BxSxH  (B=batch_size, S=seq_len, H=hidden_size)
             # We are going to implement an "MEAN_POOLING"
             # (i.e. pick the average of tokens contextual-word-embeddings to obtain a document-embedding)
-            sequence_wise_sums = torch.sum(sequence_output, dim=1)  # this should lead to a BxH shaped tensor
             valid_positions = torch.sum(attention_mask, dim=1).unsqueeze(1)  # this should lead to a Bx1 shaped tensor
+            # TODO: BUG: we need to extend the attention mask an multiply it with the sequence, zeroing the padded positions before summing them
+            expanded_mask = attention_mask.unsqueeze(-1).expand(-1, -1, sequence_output.shape[2])
+            sequence_wise_sums = torch.sum(sequence_output * expanded_mask, dim=1)  # this should lead to a BxH shaped tensor
             averaged_embeddings = sequence_wise_sums / valid_positions  # this should also be a BxH shaped tensor
             document_embeddings += [averaged_embeddings]
         document_embeddings = torch.cat(document_embeddings, dim=0).cpu().numpy()

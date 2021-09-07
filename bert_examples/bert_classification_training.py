@@ -13,7 +13,8 @@ import torch
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import BertForSequenceClassification, BertTokenizer, AdamW, PreTrainedModel, BertConfig
+from transformers import AdamW, PreTrainedModel
+from transformers.models.bert import BertForSequenceClassification, BertTokenizer, BertConfig
 
 from bert_examples.classification_dataset import ClassificationDataset
 
@@ -107,9 +108,10 @@ class SimpleBERTForClassificationTrainer:
                 outputs = self.model(input_ids=token_ids, attention_mask=attention_mask, labels=label_ids)
                 loss = outputs.loss
                 logits = outputs.logits
-                # Run the backward on the loss, so the gradients get calculated, and then use the optimizer to update the model parameters
+                # Run the backward on the loss, so the gradients get calculated (optionally clip the gradients)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_grad_norm)
+                # use the optimizer to update the model parameters (after that the gradients must be reset to zero)
                 optimizer.step()
                 optimizer.zero_grad()
                 # Optional: evaluate the outputs to check how the train progresses, and report it to the training progress bar in console
@@ -120,7 +122,7 @@ class SimpleBERTForClassificationTrainer:
             # Now, after each full epoch, evaluate the current state of the model using the dev data
             # Model needs to be set to "eval" mode to disable dropouts and other elements that only apply for training
             self.model.eval()
-            # Autograd engine can be disabled during evaluation since we do not need gradients (this way we save memory and time)
+            # ATTENTION: Autograd engine can be disabled during evaluation since we do not need gradients (this way we save memory and time)
             with torch.no_grad():
                 all_dev_scores = []
                 all_dev_losses = []
@@ -194,4 +196,4 @@ if __name__ == '__main__':
     trainer = SimpleBERTForClassificationTrainer(checkpoints_folder=CHECKPOINTS_FOLDER, bert_model_name_or_path=BERT_MODEL_NAME_OR_PATH,
                                                  train_data=TRAIN_DATA, dev_data=DEV_DATA, labels_inventory=LABELS_INVENTORY, max_len=MAX_LEN,
                                                  cache_dir=CACHE_DIR)
-    trainer.train(run_name='test1', num_epochs=10, learning_rate=2E-5, batch_size=8, cuda_device_num=CUDA_DEVICE_NUM)
+    trainer.train(run_name='test2', num_epochs=10, learning_rate=2E-5, batch_size=8, cuda_device_num=CUDA_DEVICE_NUM)

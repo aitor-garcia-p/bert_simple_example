@@ -63,7 +63,7 @@ class SimpleBertClassificationInferencer:
             predicted_indices = torch.max(logits, dim=1)[1].tolist()
             # We should get a list of label indices, one per document in the batch
             # We need to decode the label indices into their readable label name using the labels vocabulary
-            predicted_labels = [self.reverse_labels_vocabulary[idx] for idx in predicted_indices]
+            predicted_labels: List[str] = [self.reverse_labels_vocabulary[idx] for idx in predicted_indices]
             all_predicted_labels += predicted_labels
 
         # return all the labels paired to their document (or any other kind of structure you may want)
@@ -75,8 +75,13 @@ if __name__ == '__main__':
     MAX_LEN = 50
     inferencer = SimpleBertClassificationInferencer(model_path=MODEL_PATH, max_len=MAX_LEN)
 
-    documents = ['the team scored a goal in the first half', 'new microchips are being developed by IBM', 'the stock market is raising again',
-                 'el nuevo lanzador ha anotado muchos puntos', 'las nuevas tarjetas gráficas son más rápidas', 'la Bolsa ha experimentado ganancias']
+    documents = ['the team scored a goal in the first half',
+                 'new microchips are being developed by IBM',
+                 'the stock market is raising again',
+                 # Spanish examples (for zero-shot transfer learning demonstration)
+                 'el nuevo lanzador ha anotado muchos puntos',
+                 'las nuevas tarjetas gráficas son más rápidas',
+                 'la Bolsa ha experimentado ganancias']
 
     results = inferencer.predict(documents=documents, batch_size=8)
 

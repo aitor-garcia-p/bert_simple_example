@@ -3,7 +3,7 @@ from typing import List, Dict, ClassVar
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data.dataset import T_co
-from transformers import PreTrainedTokenizer
+from transformers import PreTrainedTokenizer, BertTokenizer
 
 
 class ClassificationDataset(Dataset):
@@ -85,13 +85,13 @@ class ClassificationDataset(Dataset):
         label = instance[self.LABEL_F]
 
         # The text must be tokenized with the appropriate tokenizer (the one that belongs to the same Transformer model that we will use for training)
-        tokens = self.tokenizer.tokenize(text)
+        tokens: List[str] = self.tokenizer.tokenize(text)
         # To match BERT convention (at least for the pre-trained models we are going to use) we need the [CLS] and [SEP] special tokens
         tokens = [self.tokenizer.cls_token] + tokens + [self.tokenizer.sep_token]
         # Now we need to ensure that the number of tokens matches the max number we want
         if len(tokens) > self.max_len:
             # if too many tokens, crop the sequence to the max len (ensure that the very last token is still the [SEP] special token)
-            tokens = tokens[self.max_len - 1] + self.tokenizer.sep_token
+            tokens = tokens[:self.max_len - 1] + [self.tokenizer.sep_token]
         elif len(tokens) < self.max_len:
             # if too few tokens, we add [PAD] tokens to pad the sequence to the desired length
             tokens += [self.tokenizer.pad_token] * (self.max_len - len(tokens))
@@ -111,3 +111,18 @@ class ClassificationDataset(Dataset):
         return {self.TEXT_F: token_ids,
                 self.ATTENTION_MASK_F: attention_mask,
                 self.LABEL_F: label_id}
+
+
+if __name__ == '__main__':
+    path = '../example_data/classif_example_dataset_TEST.txt'
+    BERT_MODEL_NAME_OR_PATH = 'bert-base-multilingual-cased'
+    CACHE_DIR = 'D:/DATA/cache'
+    tokenizer = BertTokenizer.from_pretrained(BERT_MODEL_NAME_OR_PATH, cache_dir=CACHE_DIR)
+    LABELS_INVENTORY = ['World', 'Sports', 'Business', 'Sci/Tech']
+    labels_vocabulary = {x: i for i, x in enumerate(LABELS_INVENTORY)}
+    dataset = ClassificationDataset.load_from_file(path=path, tokenizer=tokenizer, labels_vocabulary=labels_vocabulary, max_len=40)
+
+    print(dataset.instances[0])
+    # print(dataset.instances[1])
+
+    print(dataset[0])
